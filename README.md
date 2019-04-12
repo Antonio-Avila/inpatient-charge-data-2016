@@ -6,7 +6,9 @@ Data comes from the Centers for Medicare & Medicaid Services. Can be found via t
 https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Inpatient2016.html
 
 
-My thought and analysis are found in the medicare_proj.pdf file. Not familiar with how Medicare/Medicaid pays for hospital services or typical hospital charging structures so I am going through everything that crosses my mind, leaving no stone unturned, to get a better idea of what goes on and possible reasons why. 
+My thoughts as I am analyzing the data are found in the medicare_proj.pdf file. Not familiar with how Medicare/Medicaid pays for hospital services or typical hospital charging structures so I am going through everything that crosses my mind to get a better idea of what goes on and possible reasons why. 
+
+A smaller file will be uploaded when I am finished going through everything that comes to mind summarizing the most important things I found and things I found noteworthy. 
 
 
 Finally, also uploading my rmarkdown script which prints out the pdf in the medicare_proj.rmd file. It contains all the R code outputting the analysis, visualizations, etc.
