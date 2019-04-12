@@ -11,7 +11,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse); library(modelr);
+library(tidyverse); library(modelr); library(maps);
 ```
 
 Begin by loading in the data
@@ -27,10 +27,10 @@ There seems to be a problem parsing the data. The variable "Total Discharges" do
 
 parse2num <- med_data %>% 
     select("AvgCharge":"AvgMedPmts") %>% 
-    map(parse_number) %>% 
+    purrr::map(parse_number) %>% 
     as_tibble()
 
-med_data2 <- med_data %>% 
+med_data <- med_data %>% 
   select(-("AvgCharge":"AvgMedPmts")) %>% 
   bind_cols(parse2num)
 
@@ -43,21 +43,21 @@ Having fixed the parsing issues, I can  begin cleaning the data a little. I will
 
 ```{r Seperate DRG Code}
 
-med_data3 <- med_data2 %>% 
+med_data <- med_data %>% 
   separate(DRG, c("DRG_Code", "DRG_Descr"), sep = 3) 
 
-med_data3$DRG_Descr = str_sub(med_data3$DRG_Descr, 4)
+med_data$DRG_Descr = str_sub(med_data$DRG_Descr, 4)
 ```
 
 Even though procedure are already categorized into groups via the DRG classification system, it may be worth exploring whether certain groups of procedures are more expensive than others; for example, heart related procedures could be more or less expensive than other types of procedures even though not all heart procedures have the same level of severity. 
 
 ```{r Heart vs other}
 
-med_data3 <- med_data3 %>% 
+med_data <- med_data %>% 
   mutate(Heart = str_detect(DRG_Descr, "HEART"))
 
 
-med_data3 %>% 
+med_data %>% 
   group_by(Heart) %>% 
   summarise(mean_charge = mean(AvgCharge)) %>% 
   ggplot(aes(Heart, mean_charge)) +
@@ -71,7 +71,7 @@ In this case, it turns out that Heart related procedures as a whole are not more
 
 ```{r heart only}
 
-heart_only <- med_data3 %>% 
+heart_only <- med_data %>% 
   filter(Heart == TRUE)
 
 heart_only %>% 
@@ -114,7 +114,7 @@ filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DR
 ```
 
 Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose expense is significantly less than there are expensive ones. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures desginated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
-One thing to note from this for future reference is that procedure defined as having a major complication or comorbidity (MCC) tend to be more expensive than their non-MCC counterpart. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. 
+One thing to note from this for future reference is that procedures designated as having a major complication or comorbidity (MCC) tend to be more expensive than their non-MCC counterpart, which makes sense. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. 
 
 
 
@@ -133,21 +133,42 @@ heart_only %>%
     geom_bar(stat = "identity", show.legend = FALSE) +
     coord_flip()
 
-heart_only %>% 
-  filter(DRG_Code == "001", State %in% c("CA", "FL", "TX", "NY")) %>% 
-  group_by(State) %>% 
-  summarize(mean = mean(AvgCharge)) %>% 
-  ggplot(aes(State, mean, fill = State)) +
-    geom_bar(stat = "identity", show.legend = FALSE)
 ```
 Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no suprise, they are most commonly performed in the most populous states: California, Florida, Texas, and New York. Out of these four states, California has a significantly higher cost for that type of procedure whereas the other three states have a similar cost to other states, on average. I would think it is because California has a high cost of living compared to most other staets, but New York has a similar cost of living. Suprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
 
 
 
+```{r  heat map of us}
 
-```{r Visualize, fig.height = 6, include = FALSE}
+# to create a map of the U.S, need the goegraphical coordinates. Loading in pre-built data 
+#with coordinates but run into a problem.the data frame containing the coordinates has the 
+#full state names whereas teh medicare data has abberviated state names so cant join directly
 
-med_data3 %>% 
+states <- map_data("state")
+
+statenames.df <- bind_cols(tibble(state.abb), tibble(state.name))
+statenames.df$state.name <- str_to_lower(statenames.df$state.name)
+
+states <- statenames.df %>% left_join(states, by = c("state.name" = "region"))
+
+charges <- med_data %>% group_by(State) %>% summarize(mean_charge = mean(AvgCharge))
+map_df <- left_join(states, charges, by = c("state.abb" = "State"))
+
+ggplot(map_df, aes(long, lat, group = group)) +
+  geom_polygon(aes(fill = mean_charge)) +
+  geom_path() +
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map() +
+  labs(x = "Longitude", y = "Lattitude", title = "Average Charge per Procedure per State", fill = "Average Charge")
+
+```
+
+
+
+
+```{r per state plots, fig.height = 6, include = FALSE}
+
+med_data %>% 
   group_by(State) %>% 
   summarise(mean_charge = mean(AvgCharge)) %>%  
   ggplot(aes(mean_charge, reorder(State, mean_charge))) + 
@@ -157,14 +178,14 @@ med_data3 %>%
 
 
 
-med_data3 %>% 
+med_data %>% 
   group_by(State) %>% 
   summarise(mean_disch = mean(Discharges)) %>%  
   ggplot(aes(mean_disch, reorder(State, mean_disch))) + 
     geom_point() +
     labs(x = "Mean Discharges", y = "State")
 
-# med_data3 %>% 
+# med_data %>% 
 #   ggplot(aes(Discharges, AvgCharge)) +
 #     geom_point(aes(color = State))
 # 
@@ -172,9 +193,6 @@ med_data3 %>%
 ```
 
 
-<!-- Intention in the future is to build some kind of heat map to see how location plays into a role. In addition, I also plan to ook into the politics of the states and how their medicare funding has been affected by the support or rejection of ACA policies. -->
-
-<!-- Look into how certain types of diseases or problems can be a determining factor in hospital charges, for example, heart problems could be more expensive than non-heart problems.  -->
 
 
 
