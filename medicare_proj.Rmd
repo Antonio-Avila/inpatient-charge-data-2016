@@ -39,7 +39,7 @@ med_data <- med_data %>%
 Fixed the parsing issue for the Total Discharges column by extending the number of rows the read_csv() function reads in to determine the type of column it is to 120,000 since the first occurrence of a value over 1,000 occurred at about the 117,00th row, thus fixing the problem. Secondly,  converted the Average dollar payment columns into numeric columns, dropping the dollar symbol and ensuring the values are of the numeric type. 
 
 
-Having fixed the parsing issues, I can  begin cleaning the data a little. I will begin by separating the code and descriptions from the DRG column to shorten it. The DRG Code are unique to their descriptions so I will seperate the two. The code will be used for general analysis since it is compact, making it easier to display on graphics while the description will be kept in case I want to group and subset of the data based on a more general type of procedure, i.e. heart procedures, respiratory, etc. This type of grouping can be easily be done by looking for key words in their descriptions, whereas the code provides no clue on how to do this, making it more difficult to automate.
+Having fixed the parsing issues, I can  begin cleaning the data a little. I will begin by separating the code and descriptions from the DRG column to shorten it. The DRG Code are unique to their descriptions so I will separate the two. The code will be used for general analysis since it is compact, making it easier to display on graphics while the description will be kept in case I want to group and subset of the data based on a more general type of procedure, i.e. heart procedures, respiratory, etc. This type of grouping can be easily be done by looking for key words in their descriptions, whereas the code provides no clue on how to do this, making it more difficult to automate.
 
 ```{r Seperate DRG Code}
 
@@ -113,7 +113,7 @@ filter(heart_only, DRG_Code %in% c("001", "002", "215", "268")) %>% select(DRG_D
 filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DRG_Descr) %>% unique()
 ```
 
-Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose expense is significantly less than there are expensive ones. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures desginated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
+Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose expense is significantly less than there are expensive ones. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
 One thing to note from this for future reference is that procedures designated as having a major complication or comorbidity (MCC) tend to be more expensive than their non-MCC counterpart, which makes sense. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. 
 
 
@@ -134,7 +134,20 @@ heart_only %>%
     coord_flip()
 
 ```
-Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no suprise, they are most commonly performed in the most populous states: California, Florida, Texas, and New York. Out of these four states, California has a significantly higher cost for that type of procedure whereas the other three states have a similar cost to other states, on average. I would think it is because California has a high cost of living compared to most other staets, but New York has a similar cost of living. Suprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
+Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no surprise, they are most commonly performed in the most populous states: California, Florida, Texas, and New York. Out of these four states, California has a significantly higher cost for that type of procedure whereas the other three states have a similar cost to other states, on average. I would think it is because California has a high cost of living compared to most other states, but New York has a similar cost of living. Surprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
+
+```{r state population data, include = FALSE }
+#Imposting and Manipulaing  projected population data for each state
+state_pop <- read_csv("2016_pop.csv", col_names = FALSE)
+names(state_pop) <- c("State", "Population")
+statenames.df <- bind_cols(tibble(state.abb), tibble(state.name))
+
+state_pop <- left_join(state_pop, statenames.df, by = c("State" = "state.name") )
+state_pop[state_pop$State == "DC",]$state.abb = "DC"
+
+state_pop <- state_pop %>% select(state.abb, Population) %>% rename(State = state.abb)
+
+```
 
 
 
@@ -154,15 +167,129 @@ states <- statenames.df %>% left_join(states, by = c("state.name" = "region"))
 charges <- med_data %>% group_by(State) %>% summarize(mean_charge = mean(AvgCharge))
 map_df <- left_join(states, charges, by = c("state.abb" = "State"))
 
+
 ggplot(map_df, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = mean_charge)) +
   geom_path() +
   scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
   coord_map() +
-  labs(x = "Longitude", y = "Lattitude", title = "Average Charge per Procedure per State", fill = "Average Charge")
+  labs(x = "Longitude", y = "Lattitude", title = "Average Procedure Charge per State", fill = "Average Charge")
+
+
+
+
+
+
+# Plot ordering the states by their mean Total charge
+# is there a correlation between mean total charge of a state and its population? (new jersey a possible outloer if the case)
+# includes how population interacts with the average charge per state
+med_data %>% 
+  group_by(State) %>% 
+  summarize(mean_charge = mean(AvgCharge)) %>%  
+  left_join(state_pop) %>% 
+  ggplot(aes(mean_charge, reorder(State, mean_charge))) + 
+    geom_point(aes(size = Population, color = Population)) +
+    labs(x = "Mean Total Charge", y = "State")
+
+# See if there is a trend/ relationship between charges and states population. Theres an increasing trend
+med_data %>% 
+    group_by(State) %>% 
+    summarize(mean_charge = mean(AvgCharge)) %>%  
+    left_join(state_pop) %>% 
+    ggplot(aes(Population, mean_charge)) +
+    geom_point() +
+    geom_smooth(se = FALSE) +
+    geom_text(aes(label = State), hjust = - 0.5, vjust = 0)
+    
+
+#would like to standardize the average charge based on the number of Medicare beneficiaries in each state. Found data from KFF but need to clean and import
+
 
 ```
 
+There may be a correlation between the average charge per procedure per state and its population, though it may not be strong. The most populous states have tend to charge higher per procedure while the least populous states charge less on average. After a little investigation, there is a positive trend between average charge and the population of a state. A better comparison would be between the average charge and the number of Medicare beneficiaries. 
+It is noteworthy that Maryland charges the least on average by a significant margin compared to the other states. May be worth looking into why Maryland's Medicare procedures are so inexpensive compared to other states and see how it compares to the more expensive states, such as California. It may have to do with the services and procedures provided to the Medicare beneficiaries, meaning some of the more expensive procedures may be less prevalent in Maryland.
+
+
+
+
+```{r most commmon codes}
+
+common_codes <- med_data %>% 
+  count(DRG_Code, DRG_Descr)
+
+
+top_30codes <- common_codes %>% 
+  arrange(n) %>% 
+  tail(30) 
+top_30codes %>%
+  ggplot(aes(reorder(DRG_Code, n), n)) +
+    geom_bar(stat = "identity") +
+    coord_flip()
+  
+
+```
+
+
+```{r MCC vs non-MCC}
+
+med_data %>% 
+  mutate(MCC = str_detect(DRG_Descr, "MCC")) %>% 
+  filter(MCC == TRUE) %>% 
+  count(MCC)
+
+
+```
+
+
+
+```{r DRG Analysis by state, include=FALSE}
+
+
+# The most common procedure arcross the country is septicemia or severe sepsis which is blood poisoning (septic shock)
+# med_data %>% 
+#   count(DRG_Code) %>% 
+#   arrange(desc(n)) %>% 
+#   head(20)
+# filter(med_data, DRG_Code == "871")[1,2]
+
+
+common_codes_states <- med_data %>% 
+  count(State, DRG_Code) %>% 
+  group_by(State) %>% 
+  filter(n == max(n))
+
+
+
+med_data %>% 
+  count(State, DRG_Code) %>% 
+  group_by(State) %>% 
+  filter(n == max(n)) %>% 
+  count(State) %>% 
+  View()
+  
+
+
+# 
+#   ggplot(aes(State, n)) +
+#     geom_bar(stat = "identity", aes(fill = DRG_Code)) +
+#     coord_flip()
+#   
+# 
+# 
+# 
+# 
+# 
+# map_df <- left_join(states, common_codes, by = c("state.abb" = "State"))
+#   
+# ggplot(map_df, aes(long, lat, group = group)) +
+#   geom_polygon(aes(fill = DRG_Code)) +
+#   geom_path() +
+#   coord_map() 
+
+
+
+```
 
 
 
@@ -190,16 +317,10 @@ med_data %>%
 #     geom_point(aes(color = State))
 # 
 
+
+
+
 ```
-
-
-
-
-
-
-
-
-
 
 
 
