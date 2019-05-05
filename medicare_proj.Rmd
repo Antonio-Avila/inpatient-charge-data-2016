@@ -49,29 +49,42 @@ med_data <- med_data %>%
 med_data$DRG_Descr = str_sub(med_data$DRG_Descr, 4)
 ```
 
-Even though procedure are already categorized into groups via the DRG classification system, it may be worth exploring whether certain groups of procedures are more expensive than others; for example, heart related procedures could be more or less expensive than other types of procedures even though not all heart procedures have the same level of severity. 
-
-```{r Heart vs other}
+Since we are given the total number of discharges per hospital for each type of procedure, it may be beneficial to find the totals for each catefory. For example, it may work out better finding the total for the charges for a specific procedure and dividing by the total discharges, thereby giving a more accurate representation of the procedure's mean charge instead of taking the mean of average charges. 
+Furthermore, seeing as the City and State in which the hospital is located, the HRR (Hospital Referral Region) seems to be redundant. The HRR columns seems to be just a string column combining the States and Cities.
+```{r creating total columns}
+med_data <- med_data %>% select(-HRR)
 
 med_data <- med_data %>% 
+  mutate(TCharge = Discharges * AvgCharge, TotalPmts = Discharges * AvgTotalPmts, TMedPmts = Discharges * AvgMedPmts)
+  
+```
+
+
+Even though procedure are already categorized into groups via the DRG classification system, it may be worth exploring whether certain groups of procedures are more expensive than others; for example, heart related procedures could be more expensive than other types of procedures since they are typically very serious. 
+ 
+```{r Heart vs other}
+
+heart_only <- med_data %>% 
   mutate(Heart = str_detect(DRG_Descr, "HEART"))
 
 
-med_data %>% 
+heart_only %>% 
   group_by(Heart) %>% 
-  summarise(mean_charge = mean(AvgCharge)) %>% 
+  summarise(mean_charge = sum(TCharge) / sum(Discharges)) %>% 
   ggplot(aes(Heart, mean_charge)) +
-    geom_bar(stat = "identity", aes(fill = Heart), show.legend = FALSE)
+    geom_bar(stat = "identity", aes(fill = Heart), show.legend = FALSE) +
+    labs(x = "Heart Condition", y = "Mean Charge", title = "Mean Charge of Heart-related Procedure vs Non-Heart Procedure")
 
 
 ```
 
-In this case, it turns out that Heart related procedures as a whole are not more expensive when compared to all others, which is a little unexpected. I would expect heart related procedures to be more expensive in general because it is a vital organ and any type of major procedures is sure to be invasive, causing the need to consult a specialist. The average charge being lower may be because there are many more procedures provided that may not be very severe nor expensive. May be worth it to take a look and confirm if this is correct. 
+
+It turns out that Heart related procedures as a whole are not more expensive when compared to all others, which is a little unexpected. I would expect heart related procedures to be more expensive in general because it is a vital organ and any type of major procedures is sure to be invasive, causing the need to consult a specialist. The average charge being lower may be because there are many more procedures provided that may not be very severe nor expensive. May be worth it to take a look and confirm if this is correct. 
 
 
 ```{r heart only}
 
-heart_only <- med_data %>% 
+heart_only <- heart_only %>% 
   filter(Heart == TRUE)
 
 heart_only %>% 
@@ -84,57 +97,73 @@ heart_only %>%
 
 heart_only %>% 
   group_by(DRG_Code) %>% 
-  summarise(mean_charge = mean(AvgCharge))
+  summarise(mean_heart_charge = sum(TCharge) / sum(Discharges))
 
 # Visualizing the Mean Charge for a heart-related procedure by its DRG Code
 heart_only %>% 
   group_by(DRG_Code) %>% 
-  summarise(mean_charge = mean(AvgCharge)) %>% 
-  ggplot(aes(DRG_Code, mean_charge)) +
+  summarise(mean_heart_charge = sum(TCharge) / sum(Discharges)) %>% 
+  ungroup() %>% 
+  ggplot(aes(DRG_Code, mean_heart_charge)) +
     geom_bar(stat = "identity", aes(fill = DRG_Code), show.legend = FALSE) +
-    geom_hline(yintercept = mean(heart_only$AvgCharge), color = "red") +
-    labs(title = "Mean Charge per type of DRG Procedre",x = "DRG Code", y = "Mean Charge") +
-    annotate("text", max(heart_only$DRG_Code), mean(heart_only$AvgCharge), vjust = -1, label = "Mean")
+    geom_hline(yintercept = sum(heart_only$TCharge) / sum(heart_only$Discharges), color = "red") +
+    labs(title = "Mean Charge per Heart-related DRG Code",x = "DRG Code", y = "Mean Charge") +
+    annotate("text", max(heart_only$DRG_Code), mean(heart_only$AvgCharge), hjust = 0.8, vjust = -0.5, label = "National Avg")
 
 
 
 # Visualizing the proportion of payments. Skew towards the less expensive procedures.
-total_charge = sum(heart_only$AvgCharge)
+total_charge = sum(heart_only$TCharge)
 heart_only %>% 
   group_by(DRG_Code) %>% 
-  summarize(group_charge = sum(AvgCharge), perc_charge = group_charge / total_charge) %>% 
+  summarize(group_charge = sum(TCharge), perc_charge = group_charge / total_charge) %>% 
    ggplot(aes(DRG_Code, perc_charge)) +
     geom_bar(stat = "identity", aes(fill = DRG_Code), show.legend = FALSE) +
     geom_ref_line(v = 4.5, size = 2)  +
-    labs(title = "Percentage of Overall Mean per type of DRG Procedure", x = "DRG Code", y = "Percent of Total Charge") 
+    labs(title = "Percentage of Mean per type of Heart DRG Procedure", x = "DRG Code", y = "Percent of Total Charge")
 
 
 filter(heart_only, DRG_Code %in% c("001", "002", "215", "268")) %>% select(DRG_Descr) %>% unique()
 filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DRG_Descr) %>% unique()
 ```
 
-Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose expense is significantly less than there are expensive ones. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
-One thing to note from this for future reference is that procedures designated as having a major complication or comorbidity (MCC) tend to be more expensive than their non-MCC counterpart, which makes sense. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. 
+Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose charges are less than the mean than there are expensice procedures/diagnosis. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
+The most common diagnosis was DRG Code 291, which accounted for most about half of the total charge for heart-related diagnosis. This corresponded with having some form of Heart Failure or Shock with a major complication or comorbidity, including diagonses such as hypertensive heart diseases and systolic/diastolic heart failure.  It makes sense that there are a lot more of these types of diagnoses as opposed to heart transplants since transplants are incredibly risky for the elderly and their hearts are more likely to begin failing given their age.  
+
+One thing to note from this for future reference is that procedures designated as having a major complication or comorbidity (MCC) tend to be more expensive than their non-MCC counterpart, which makes sense. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. It is very likely this would turn out to be true, otherwise they wouldn't be called complications or treated separately from their non-MCC counterparts. 
 
 
 
 ```{r}
 heart_only %>% 
   filter(DRG_Code == "001") %>% 
-  ggplot(aes(State, fill = State)) +
-    geom_bar(show.legend = FALSE) +
-    coord_flip()
+  group_by(State) %>% 
+  summarize(Disch = sum(Discharges)) %>% 
+  ggplot(aes(State, Disch, fill = State)) +
+    geom_bar(stat = "Identity", show.legend = FALSE) +
+    coord_flip() +
+    labs(x = "State", y = "Count", title = "Number of Heart Transplant w/MCC per State")
 
+heart_trans_mean = sum(heart_only[heart_only$DRG_Code=="001",]$TCharge)/sum(heart_only[heart_only$DRG_Code=="001",]$Discharges)
 heart_only %>% 
   filter(DRG_Code == "001") %>% 
   group_by(State) %>% 
-  summarize(mean = mean(AvgCharge)) %>% 
+  summarize(mean = sum(TCharge)/sum(Discharges)) %>% 
   ggplot(aes(State, mean, fill = State)) +
     geom_bar(stat = "identity", show.legend = FALSE) +
+    geom_ref_line(h = heart_trans_mean, colour = "red", size = 1) +
+    labs(y = "Mean", title = "Mean Charge for Heart Transplant w/ MCC per State") +
+    annotate("text", max(heart_only[heart_only$DRG_Code == "001",]$State), heart_trans_mean, hjust = -0.05, label = "National Average") +
     coord_flip()
+  
+heart_only %>% 
+  filter(State == "TX", DRG_Code == "001") %>% 
+  group_by(City) %>% 
+  summarise(Discharges = sum(Discharges))
+
 
 ```
-Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no surprise, they are most commonly performed in the most populous states: California, Florida, Texas, and New York. Out of these four states, California has a significantly higher cost for that type of procedure whereas the other three states have a similar cost to other states, on average. I would think it is because California has a high cost of living compared to most other states, but New York has a similar cost of living. Surprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
+Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no surprise, they are most commonly performed in the most populous states in 2016: California, Florida, Illinois, Texas,  and New York. Furthermore, Texas hospitals perform the most heart transplants across the nation, with California a close second. This makes sense since the Texas Medical Center in Houston is renown for its hospitals, including its Cardiology specialists. As such, I would expect most of the transplants in Texas to occur in Houston, which is confirmed by looking at the total number of patient discharges per city.  While Texas has the most discharges and charge around the national average, California has a significantly higher cost for the procedure at nearly double the cost. I would think it is because California has a high cost of living compared to most other states, but New York has a similar cost of living and is below the national average. Wyoming, however, had no heart transplants with MCCs performed in any of its hospitals. Surprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
 
 ```{r state population data, include = FALSE }
 #Imposting and Manipulaing  projected population data for each state
@@ -151,7 +180,7 @@ state_pop <- state_pop %>% select(state.abb, Population) %>% rename(State = stat
 
 
 
-```{r  heat map of us}
+```{r  charge heat map of us}
 
 # to create a map of the U.S, need the goegraphical coordinates. Loading in pre-built data 
 #with coordinates but run into a problem.the data frame containing the coordinates has the 
@@ -164,7 +193,7 @@ statenames.df$state.name <- str_to_lower(statenames.df$state.name)
 
 states <- statenames.df %>% left_join(states, by = c("state.name" = "region"))
 
-charges <- med_data %>% group_by(State) %>% summarize(mean_charge = mean(AvgCharge))
+charges <- med_data %>% group_by(State) %>% summarize(mean_charge = sum(TCharge)/sum(Discharges))
 map_df <- left_join(states, charges, by = c("state.abb" = "State"))
 
 
@@ -178,6 +207,10 @@ ggplot(map_df, aes(long, lat, group = group)) +
 
 
 
+# med_data %>% group_by(State) %>% summarise(sum = sum(Discharges)) %>% left_join(state_pop) %>% ggplot(aes(sum, Population)) + geom_point() + geom_smooth(method = "lm")
+
+
+# may have tp fix everything, ie taking the means of the average charge. instead find total charge per hospital by multiplying by total discharges and dividing by total number of discharges to get a more accurate sense of the mean
 
 
 # Plot ordering the states by their mean Total charge
@@ -185,7 +218,7 @@ ggplot(map_df, aes(long, lat, group = group)) +
 # includes how population interacts with the average charge per state
 med_data %>% 
   group_by(State) %>% 
-  summarize(mean_charge = mean(AvgCharge)) %>%  
+  summarize(mean_charge = sum(TCharge)/sum(Discharges)) %>%  
   left_join(state_pop) %>% 
   ggplot(aes(mean_charge, reorder(State, mean_charge))) + 
     geom_point(aes(size = Population, color = Population)) +
@@ -194,11 +227,11 @@ med_data %>%
 # See if there is a trend/ relationship between charges and states population. Theres an increasing trend
 med_data %>% 
     group_by(State) %>% 
-    summarize(mean_charge = mean(AvgCharge)) %>%  
+    summarize(mean_charge = sum(TCharge)/sum(Discharges)) %>%  
     left_join(state_pop) %>% 
     ggplot(aes(Population, mean_charge)) +
     geom_point() +
-    geom_smooth(se = FALSE) +
+    geom_smooth(se = FALSE, method = "lm") +
     geom_text(aes(label = State), hjust = - 0.5, vjust = 0)
     
 
@@ -297,7 +330,7 @@ med_data %>%
 
 med_data %>% 
   group_by(State) %>% 
-  summarise(mean_charge = mean(AvgCharge)) %>%  
+  summarise(mean_charge = sum(TCharge)/sum(Discharges)) %>%  
   ggplot(aes(mean_charge, reorder(State, mean_charge))) + 
     geom_point() +
     labs(x = "Mean Total Charge", y = "State")
