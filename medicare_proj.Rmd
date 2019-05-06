@@ -7,11 +7,12 @@ output:
   html_document: default
 editor_options:
   chunk_output_type: console
+indent: true
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse); library(modelr); library(maps);
+library(tidyverse); library(modelr); library(maps); library(RColorBrewer);
 ```
 
 Begin by loading in the data
@@ -108,7 +109,7 @@ heart_only %>%
     geom_bar(stat = "identity", aes(fill = DRG_Code), show.legend = FALSE) +
     geom_hline(yintercept = sum(heart_only$TCharge) / sum(heart_only$Discharges), color = "red") +
     labs(title = "Mean Charge per Heart-related DRG Code",x = "DRG Code", y = "Mean Charge") +
-    annotate("text", max(heart_only$DRG_Code), mean(heart_only$AvgCharge), hjust = 0.8, vjust = -0.5, label = "National Avg")
+    annotate("text", max(heart_only$DRG_Code), mean(heart_only$AvgCharge), hjust = 0.8, vjust = -0.5, label = "Average")
 
 
 
@@ -165,6 +166,7 @@ heart_only %>%
 ```
 Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no surprise, they are most commonly performed in the most populous states in 2016: California, Florida, Illinois, Texas,  and New York. Furthermore, Texas hospitals perform the most heart transplants across the nation, with California a close second. This makes sense since the Texas Medical Center in Houston is renown for its hospitals, including its Cardiology specialists. As such, I would expect most of the transplants in Texas to occur in Houston, which is confirmed by looking at the total number of patient discharges per city.  While Texas has the most discharges and charge around the national average, California has a significantly higher cost for the procedure at nearly double the cost. I would think it is because California has a high cost of living compared to most other states, but New York has a similar cost of living and is below the national average. Wyoming, however, had no heart transplants with MCCs performed in any of its hospitals. Surprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
 
+
 ```{r state population data, include = FALSE }
 #Imposting and Manipulaing  projected population data for each state
 state_pop <- read_csv("2016_pop.csv", col_names = FALSE)
@@ -178,7 +180,9 @@ state_pop <- state_pop %>% select(state.abb, Population) %>% rename(State = stat
 
 ```
 
+Taking a step back from considering only heart-related diagonses, I would like to consider how all diagnoses are charged across the nation. To get a better sense if there is a geographical relationship with the average charge for a procedure, I want to plot a heat map of the United States. This will allow me to visualize if, for example, Medicare services and procedures are cheaper in the MidWestern states as opposed to Northeastern states.
 
+The states whose hospitals charge the most per Medicare service on average seem to correspond with the most populous states, similar to what we saw in the heart related diagnoses, save for Nevada and DC. DC's high average charge makes sense because of its high cost of living, thanks to it being the home of our political institutions. On the other hand, Nevada's high average charge doesn't make much sense initially; I suspect it is a result of its population being concentrated near Las Vegas. 
 
 ```{r  charge heat map of us}
 
@@ -200,10 +204,9 @@ map_df <- left_join(states, charges, by = c("state.abb" = "State"))
 ggplot(map_df, aes(long, lat, group = group)) +
   geom_polygon(aes(fill = mean_charge)) +
   geom_path() +
-  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  scale_fill_gradientn(colours=rev(heat.colors(10)), na.value="grey90")+
   coord_map() +
   labs(x = "Longitude", y = "Lattitude", title = "Average Procedure Charge per State", fill = "Average Charge")
-
 
 
 
@@ -241,6 +244,7 @@ med_data %>%
 ```
 
 There may be a correlation between the average charge per procedure per state and its population, though it may not be strong. The most populous states have tend to charge higher per procedure while the least populous states charge less on average. After a little investigation, there is a positive trend between average charge and the population of a state. A better comparison would be between the average charge and the number of Medicare beneficiaries. 
+
 It is noteworthy that Maryland charges the least on average by a significant margin compared to the other states. May be worth looking into why Maryland's Medicare procedures are so inexpensive compared to other states and see how it compares to the more expensive states, such as California. It may have to do with the services and procedures provided to the Medicare beneficiaries, meaning some of the more expensive procedures may be less prevalent in Maryland.
 
 
