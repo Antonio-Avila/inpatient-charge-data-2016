@@ -12,7 +12,7 @@ indent: true
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse); library(modelr); library(maps); library(RColorBrewer);
+library(tidyverse); library(modelr); library(maps); library(RColorBrewer); library(usmap);
 ```
 
 Begin by loading in the data
@@ -20,7 +20,7 @@ Begin by loading in the data
 ```{r load data}
 med_data = read_csv("medicare_data.csv", guess_max = 112000)
 real_names = names(med_data)
-names(med_data) <- c("DRG", "ID", "Provider", "Address", "City", "State", "Zip", "HRR", "Discharges", "AvgCharge", "AvgTotalPmts", "AvgMedPmts" )
+names(med_data) <- c("DRG", "ID", "Provider", "Address", "City", "state", "Zip", "HRR", "Discharges", "AvgCharge", "AvgTotalPmts", "AvgMedPmts" )
 ```
 There seems to be a problem parsing the data. The variable "Total Discharges" doesn't read in a few of the observations correctly because they're value is above 1,000. The commas seem to be affecting the parsing of those particular observations. In addition, The charges and payments variables are being parsed in as character types instead of numeric (or doubles) because of the dollar sign. 
 
@@ -128,19 +128,19 @@ filter(heart_only, DRG_Code %in% c("001", "002", "215", "268")) %>% select(DRG_D
 filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DRG_Descr) %>% unique()
 ```
 
-Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose charges are less than the mean than there are expensice procedures/diagnosis. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
-The most common diagnosis was DRG Code 291, which accounted for most about half of the total charge for heart-related diagnosis. This corresponded with having some form of Heart Failure or Shock with a major complication or comorbidity, including diagonses such as hypertensive heart diseases and systolic/diastolic heart failure.  It makes sense that there are a lot more of these types of diagnoses as opposed to heart transplants since transplants are incredibly risky for the elderly and their hearts are more likely to begin failing given their age.  
+Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose charges are less than the mean than there are expensive procedures/diagnosis. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
+The most common diagnosis was DRG Code 291, which accounted for most about half of the total charge for heart-related diagnosis. This corresponded with having some form of Heart Failure or Shock with a major complication or co-morbidity, including diagnoses such as hypertensive heart diseases and systolic/diastolic heart failure.  It makes sense that there are a lot more of these types of diagnoses as opposed to heart transplants since transplants are incredibly risky for the elderly and their hearts are more likely to begin failing given their age.  
 
-One thing to note from this for future reference is that procedures designated as having a major complication or comorbidity (MCC) tend to be more expensive than their non-MCC counterpart, which makes sense. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. It is very likely this would turn out to be true, otherwise they wouldn't be called complications or treated separately from their non-MCC counterparts. 
+One thing to note from this for future reference is that procedures designated as having a major complication or co-morbidity (MCC) tend to be more expensive than their non-MCC counterpart, which makes sense. May be worth investigating this comparison for all types of procedures in the future as well as to which places in the country have more MCC procedures. It is very likely this would turn out to be true, otherwise they wouldn't be called complications or treated separately from their non-MCC counterparts. 
 
 
 
 ```{r}
 heart_only %>% 
   filter(DRG_Code == "001") %>% 
-  group_by(State) %>% 
+  group_by(state) %>% 
   summarize(Disch = sum(Discharges)) %>% 
-  ggplot(aes(State, Disch, fill = State)) +
+  ggplot(aes(state, Disch, fill = state)) +
     geom_bar(stat = "Identity", show.legend = FALSE) +
     coord_flip() +
     labs(x = "State", y = "Count", title = "Number of Heart Transplant w/MCC per State")
@@ -148,17 +148,17 @@ heart_only %>%
 heart_trans_mean = sum(heart_only[heart_only$DRG_Code=="001",]$TCharge)/sum(heart_only[heart_only$DRG_Code=="001",]$Discharges)
 heart_only %>% 
   filter(DRG_Code == "001") %>% 
-  group_by(State) %>% 
+  group_by(state) %>% 
   summarize(mean = sum(TCharge)/sum(Discharges)) %>% 
-  ggplot(aes(State, mean, fill = State)) +
+  ggplot(aes(state, mean, fill = state)) +
     geom_bar(stat = "identity", show.legend = FALSE) +
     geom_ref_line(h = heart_trans_mean, colour = "red", size = 1) +
     labs(y = "Mean", title = "Mean Charge for Heart Transplant w/ MCC per State") +
-    annotate("text", max(heart_only[heart_only$DRG_Code == "001",]$State), heart_trans_mean, hjust = -0.05, label = "National Average") +
+    annotate("text", max(heart_only[heart_only$DRG_Code == "001",]$state), heart_trans_mean, hjust = -0.05, label = "National Average") +
     coord_flip()
   
 heart_only %>% 
-  filter(State == "TX", DRG_Code == "001") %>% 
+  filter(state == "TX", DRG_Code == "001") %>% 
   group_by(City) %>% 
   summarise(Discharges = sum(Discharges))
 
@@ -167,75 +167,55 @@ heart_only %>%
 Out of curiosity, I decided to look into where most of the heart transplant with MCCs tend to occur. To no surprise, they are most commonly performed in the most populous states in 2016: California, Florida, Illinois, Texas,  and New York. Furthermore, Texas hospitals perform the most heart transplants across the nation, with California a close second. This makes sense since the Texas Medical Center in Houston is renown for its hospitals, including its Cardiology specialists. As such, I would expect most of the transplants in Texas to occur in Houston, which is confirmed by looking at the total number of patient discharges per city.  While Texas has the most discharges and charge around the national average, California has a significantly higher cost for the procedure at nearly double the cost. I would think it is because California has a high cost of living compared to most other states, but New York has a similar cost of living and is below the national average. Wyoming, however, had no heart transplants with MCCs performed in any of its hospitals. Surprisingly, Pennsylvania's average cost is comparable to California even though it is has about a quarter of the population and had about half of the procedure occur. The final thing to note, if you are in need in of a heart transplant or implant and have some sort of chronic disease that could complicate the surgery, go to Maryland. It still isn't cheap, but it is cheaper than mostly everywhere else. Arizona is comparable but it's too hot and dry out there and that is the last thing you need after a major operation. 
 
 
+
 ```{r state population data, include = FALSE }
 #Imposting and Manipulaing  projected population data for each state
 state_pop <- read_csv("2016_pop.csv", col_names = FALSE)
-names(state_pop) <- c("State", "Population")
+names(state_pop) <- c("state", "Population")
 statenames.df <- bind_cols(tibble(state.abb), tibble(state.name))
+state_pop <- left_join(state_pop, statenames.df, by = c("state" = "state.name") )
+state_pop[state_pop$state == "DC",]$state.abb = "DC"
+state_pop <- state_pop %>% select(state.abb, Population) %>% rename(state = state.abb)
 
-state_pop <- left_join(state_pop, statenames.df, by = c("State" = "state.name") )
-state_pop[state_pop$State == "DC",]$state.abb = "DC"
-
-state_pop <- state_pop %>% select(state.abb, Population) %>% rename(State = state.abb)
 
 ```
 
-Taking a step back from considering only heart-related diagonses, I would like to consider how all diagnoses are charged across the nation. To get a better sense if there is a geographical relationship with the average charge for a procedure, I want to plot a heat map of the United States. This will allow me to visualize if, for example, Medicare services and procedures are cheaper in the MidWestern states as opposed to Northeastern states.
+Taking a step back from considering only heart-related diagnoses, I would like to consider how all diagnoses are charged across the nation. To get a better sense if there is a geographical relationship with the average charge for a procedure, I want to plot a heat map of the United States. This will allow me to visualize if, for example, Medicare services and procedures are cheaper in the Mid-Western states as opposed to Northeastern states.
 
 The states whose hospitals charge the most per Medicare service on average seem to correspond with the most populous states, similar to what we saw in the heart related diagnoses, save for Nevada and DC. DC's high average charge makes sense because of its high cost of living, thanks to it being the home of our political institutions. On the other hand, Nevada's high average charge doesn't make much sense initially; I suspect it is a result of its population being concentrated near Las Vegas. 
 
-```{r  charge heat map of us}
+```{r  mean charge}
 
-# to create a map of the U.S, need the goegraphical coordinates. Loading in pre-built data 
-#with coordinates but run into a problem.the data frame containing the coordinates has the 
-#full state names whereas teh medicare data has abberviated state names so cant join directly
+med_data %>% 
+  group_by(state) %>% 
+  summarise(mean_charge = sum(TCharge) / sum(Discharges)) %>% 
+  plot_usmap(data = ., values = "mean_charge") +
+    scale_fill_continuous(low = "white", high = "red", name = "Average Charge") +
+    theme(legend.position = "right") +
+    labs(title = "Average Procedure Charge per State")
 
-states <- map_data("state")
-
-statenames.df <- bind_cols(tibble(state.abb), tibble(state.name))
-statenames.df$state.name <- str_to_lower(statenames.df$state.name)
-
-states <- statenames.df %>% left_join(states, by = c("state.name" = "region"))
-
-charges <- med_data %>% group_by(State) %>% summarize(mean_charge = sum(TCharge)/sum(Discharges))
-map_df <- left_join(states, charges, by = c("state.abb" = "State"))
-
-
-ggplot(map_df, aes(long, lat, group = group)) +
-  geom_polygon(aes(fill = mean_charge)) +
-  geom_path() +
-  scale_fill_gradientn(colours=rev(heat.colors(10)), na.value="grey90")+
-  coord_map() +
-  labs(x = "Longitude", y = "Lattitude", title = "Average Procedure Charge per State", fill = "Average Charge")
-
-
-
-# med_data %>% group_by(State) %>% summarise(sum = sum(Discharges)) %>% left_join(state_pop) %>% ggplot(aes(sum, Population)) + geom_point() + geom_smooth(method = "lm")
-
-
-# may have tp fix everything, ie taking the means of the average charge. instead find total charge per hospital by multiplying by total discharges and dividing by total number of discharges to get a more accurate sense of the mean
 
 
 # Plot ordering the states by their mean Total charge
 # is there a correlation between mean total charge of a state and its population? (new jersey a possible outloer if the case)
 # includes how population interacts with the average charge per state
 med_data %>% 
-  group_by(State) %>% 
+  group_by(state) %>% 
   summarize(mean_charge = sum(TCharge)/sum(Discharges)) %>%  
   left_join(state_pop) %>% 
-  ggplot(aes(mean_charge, reorder(State, mean_charge))) + 
+  ggplot(aes(mean_charge, reorder(state, mean_charge))) + 
     geom_point(aes(size = Population, color = Population)) +
     labs(x = "Mean Total Charge", y = "State")
 
 # See if there is a trend/ relationship between charges and states population. Theres an increasing trend
 med_data %>% 
-    group_by(State) %>% 
+    group_by(state) %>% 
     summarize(mean_charge = sum(TCharge)/sum(Discharges)) %>%  
     left_join(state_pop) %>% 
     ggplot(aes(Population, mean_charge)) +
     geom_point() +
     geom_smooth(se = FALSE, method = "lm") +
-    geom_text(aes(label = State), hjust = - 0.5, vjust = 0)
+    geom_text(aes(label = state), hjust = - 0.5, vjust = 0)
     
 
 #would like to standardize the average charge based on the number of Medicare beneficiaries in each state. Found data from KFF but need to clean and import
@@ -243,118 +223,197 @@ med_data %>%
 
 ```
 
-There may be a correlation between the average charge per procedure per state and its population, though it may not be strong. The most populous states have tend to charge higher per procedure while the least populous states charge less on average. After a little investigation, there is a positive trend between average charge and the population of a state. A better comparison would be between the average charge and the number of Medicare beneficiaries. 
+There may be a correlation between the average charge per procedure per state and its population, though it may not be strong. The most populous states have tend to charge higher per procedure while the least populous states charge less on average. After a little investigation, there is a positive trend between average charge and the population of a state. A better comparison would be between the average charge and the number of Medicare beneficiaries, even though I expect the number of beneficiaries and state population to be highly correlated and yield similar results. 
 
 It is noteworthy that Maryland charges the least on average by a significant margin compared to the other states. May be worth looking into why Maryland's Medicare procedures are so inexpensive compared to other states and see how it compares to the more expensive states, such as California. It may have to do with the services and procedures provided to the Medicare beneficiaries, meaning some of the more expensive procedures may be less prevalent in Maryland.
 
+
+I should start looking into what Medicare procedures/diagnoses are the most common diagnoses nationwide. The 15 most common DRG Codes account for 40% of all procedures and diagnoses, with the most common codes being 871 and 470. Code 871 corresponds to being diagnosed with some form of sepsis; it makes sense for sepsis to be one of the most common diagnoses since the elderly are more susceptible as a result of their weakened immune systems. Having a major joint replacement of reattachment with out a MCC comes in at a close second in all Medicare procedures, corresponding to DRG Code 470. Seeing how common osteoarthritis is in the elderly, it is no suprise that having a major joint replaced or reattached is one of the most common Medicare procedures. With age, joints typically tend to degrade from wear and tear. As the cartilage in the joints begins to erode, adjacent bones begin to rub with each other, causing discomfor tnad pain; to increase comfort and ease joint pain, a form of realignment or replacement of the joint can be an effective solution. 
 
 
 
 ```{r most commmon codes}
 
 common_codes <- med_data %>% 
-  count(DRG_Code, DRG_Descr)
+  group_by(DRG_Code, DRG_Descr) %>% 
+  summarise(Discharge = sum(Discharges))
 
 
-top_30codes <- common_codes %>% 
-  arrange(n) %>% 
-  tail(30) 
-top_30codes %>%
-  ggplot(aes(reorder(DRG_Code, n), n)) +
-    geom_bar(stat = "identity") +
+top_15codes <- common_codes %>% 
+  arrange(desc(Discharge)) %>% 
+  head(15) 
+
+top_15codes %>%
+  ggplot(aes(reorder(DRG_Code, Discharge), Discharge)) +
+    geom_bar(aes(fill = DRG_Code), stat = "identity", show.legend = FALSE) +
+    labs(x = "DRG Code", title = "Most Common MS-DRG diagnoses Nationwide") +
     coord_flip()
-  
-
-```
-
-
-```{r MCC vs non-MCC}
-
-med_data %>% 
-  mutate(MCC = str_detect(DRG_Descr, "MCC")) %>% 
-  filter(MCC == TRUE) %>% 
-  count(MCC)
-
-
-```
 
 
 
-```{r DRG Analysis by state, include=FALSE}
+#Top 10% of Codes
 
-
-# The most common procedure arcross the country is septicemia or severe sepsis which is blood poisoning (septic shock)
-# med_data %>% 
-#   count(DRG_Code) %>% 
-#   arrange(desc(n)) %>% 
-#   head(20)
-# filter(med_data, DRG_Code == "871")[1,2]
-
-
-common_codes_states <- med_data %>% 
-  count(State, DRG_Code) %>% 
-  group_by(State) %>% 
-  filter(n == max(n))
-
-
-
-med_data %>% 
-  count(State, DRG_Code) %>% 
-  group_by(State) %>% 
-  filter(n == max(n)) %>% 
-  count(State) %>% 
-  View()
-  
-
-
-# 
-#   ggplot(aes(State, n)) +
-#     geom_bar(stat = "identity", aes(fill = DRG_Code)) +
+# common_codes %>% 
+#   arrange(desc(Discharge)) %>% 
+#   head(0.1*nrow(common_codes)) %>%   
+#   ggplot(aes(reorder(DRG_Code, Discharge), Discharge)) +
+#     geom_bar(aes(fill = DRG_Code), stat = "identity", show.legend = FALSE) +
+#     labs(x = "DRG Code", title = "Most Common MS-DRG diagnoses Nationwide") +
 #     coord_flip()
-#   
-# 
-# 
-# 
-# 
-# 
-# map_df <- left_join(states, common_codes, by = c("state.abb" = "State"))
-#   
-# ggplot(map_df, aes(long, lat, group = group)) +
-#   geom_polygon(aes(fill = DRG_Code)) +
-#   geom_path() +
-#   coord_map() 
-
-
 
 ```
 
 
+I would next like to see what procedures are most common within each states. Even though I would expect the top choices to be common across states. At the state level, nearly half od all states have a sepsis related diagnosis with a MCC (code 470) as the most common diagnosis for Medicare patients, while the other half corresponded to major joint replacement (code 871). Sepsis seems to be predominant in the Midwestern to Western states, save for a few exception. Joint replacements on the other hand tend to be more frequent in the beneficiaries living in Southern to Northeastern states. I would have to do a little more digging into the possibility for separation. 
 
-```{r per state plots, fig.height = 6, include = FALSE}
 
+```{r DRG Analysis by state}
+
+
+top_code_states <- med_data %>% 
+  group_by(state, DRG_Code) %>% 
+  summarise(Discharge = sum(Discharges)) %>% 
+  filter(Discharge == max(Discharge))
+
+common_codes_states %>% ungroup() %>% count(DRG_Code)
+
+# Most common code per state
+common_codes_states %>% 
+  ggplot(aes(state, Discharge)) +
+    geom_bar(stat = "identity", aes(fill = DRG_Code)) +
+    coord_flip()
+
+#top 2 most common codes
 med_data %>% 
-  group_by(State) %>% 
-  summarise(mean_charge = sum(TCharge)/sum(Discharges)) %>%  
-  ggplot(aes(mean_charge, reorder(State, mean_charge))) + 
-    geom_point() +
-    labs(x = "Mean Total Charge", y = "State")
+    group_by(state, DRG_Code) %>% 
+    summarise(Discharge = sum(Discharges)) %>% 
+    top_n(2) %>% 
+    ggplot(aes(state, Discharge)) +
+      geom_bar(stat = "identity", aes(fill = DRG_Code)) +
+      coord_flip() +
+      labs(title = "Top 2 most common DRG Diagnoses")
 
-
-
-
+# ratio of the 2 most common codes per state
 med_data %>% 
-  group_by(State) %>% 
-  summarise(mean_disch = mean(Discharges)) %>%  
-  ggplot(aes(mean_disch, reorder(State, mean_disch))) + 
-    geom_point() +
-    labs(x = "Mean Discharges", y = "State")
+    group_by(state, DRG_Code) %>% 
+    summarise(Discharge = sum(Discharges)) %>% 
+    top_n(2) %>% 
+    group_by(state) %>% 
+    mutate(prop = Discharge / sum(Discharge)) %>% 
+    ggplot(aes(state, prop)) +
+      geom_bar(stat = "identity", aes(fill = DRG_Code)) +
+      coord_flip() +
+      labs(x = "State", y = "Proportion", title = "Top 2 most common DRG Diagnoses by Proportion")
+
+
+common_codes_states %>% 
+    plot_usmap(data = ., values = "DRG_Code") +
+    theme(legend.position = "right") +
+    labs(title = "Most Common DRG Code in each State", fill = "DRG Code")
+
 
 # med_data %>% 
-#   ggplot(aes(Discharges, AvgCharge)) +
-#     geom_point(aes(color = State))
+#     group_by(state, DRG_Code) %>% 
+#     summarise(Discharge = sum(Discharges)) %>% 
+#     top_n(2) %>% 
+#     group_by(state) %>% 
+#     mutate(prop = Discharge / sum(Discharge)) %>% 
+#     plot_usmap(data = ., values = "prop") +
+#       theme(legend.position = "right") +
+#       labs(title = "Most Common DRG Code in each State", fill = "Proportion of DRG Code")
+```
+
+
+Since Medicare typically pays the hospitals for their services less than they would charge otherwise, I would like to see in which states does Medicare cover most of the charges. In addition to Maryland being the least expensive for Medicare beneficiaries, it pays out the largest percentage. Where as in most other states Medicare pays out less than 40% of the hospitals charges, in Maryland it pays out about 85% of the procedure charges. This may be a result of charges being so much less expensive in Maryland. To see if this is an anomoly or if Medicare pays out a certain amount on average for procedures, I will look into the average Medicare payments. 
+
+The average amount medicare pays for a hospital visit in each state seems to be relatively uniformly distributed. Some things to note: Alaska is the third highest state in regards to average hospital charge but ranks the highest in reception of Medicare payments. The number one and two states with highest average charge, California and Nevada, both receive substantially less, explaining why the percentage covered is so low. From the beneficiary's point of view, it makes no difference how much is paid to the hospital since they are only responsible for their co-payments and deductibles. From the hospital's point of view, the amount covered by Medicare plays a much more important role. Since Medicare only pays for a fraction of what the hospital would otherwise charge, there is a significant loss in revenue and potentially impacting the salaries of those involved. (Gives a hint into why policies such as Medicare-for-all may not be truly viable)
+
+```{r percentage covered by medicare}
+
+med_data <- med_data %>% 
+  mutate(percent_covered = TMedPmts / TCharge)
+
+med_data %>% 
+  group_by(state) %>% 
+  summarise(perc_cov = sum(TMedPmts) / sum(TCharge)) %>% 
+    plot_usmap(data = ., values = "perc_cov") +
+    scale_fill_continuous(low = "white", high = "red", name = "Percent Covered", label = scales::comma) +
+    theme(legend.position = "right") +
+    labs(title = "Average Percentage Covered by Medicare")
+
+
+med_data %>% 
+  group_by(state) %>% 
+  summarise(perc_cov = sum(TMedPmts) / sum(TCharge)) %>% 
+  ggplot(aes(state, perc_cov)) +
+    geom_bar(stat = "identity", aes(fill = state), show.legend = FALSE) +
+    coord_flip() +
+    labs(x = "state", y = "Percent Covered", title = "Average Percentage of Charges that Medicare Covers")
+
+
+
+
+med_data %>% 
+  group_by(state) %>% 
+  summarise(medicare_pmt = sum(TMedPmts) / sum(Discharges)) %>% 
+    ggplot(aes(state, medicare_pmt)) +
+    geom_bar(stat = "identity", aes(fill = state), show.legend = FALSE) +
+    geom_ref_line(h = sum(med_data$TMedPmts) / sum(med_data$Discharges), colour = "red", size = 1) +
+    coord_flip() +
+    labs(x = "state", y = "Average Medicare Payment", title = "Average Amount Medicare Pays for in each state")
+    
+  
+med_data %>% 
+  group_by(state) %>% 
+  summarise(medicare_pmt = sum(TMedPmts) / sum(Discharges)) %>% 
+  plot_usmap(data = ., values = "medicare_pmt") +
+    scale_fill_continuous(low = "white", high = "red", name = "Average Medicare Payment", label = scales::comma) +
+    theme(legend.position = "right") +
+    labs(title = "Average Amount Medicare Pays for in each State")
+
+```
+
+
+The next immediate question I have about the data is in regards to how much the beneficiaries actually pay out of pocket. As defined, the variable total payments includes what Medicare will actually pay to the provider plus the co-payments and deductibles paid by the beneficiary, plus payments by a third party if included. As such, the out of pocket amount is the difference between the total payments and the medicare payments.
+
+Suprisingly, the top 3 regions that have to pay the highest out of pocket are Washington D.C., Hawaii, and Utah.
+
+
+```{r out of pocket}
+
+med_data <- med_data %>% 
+  mutate(out_of_pocket = TotalPmts - TMedPmts)
+
+med_data %>% 
+  group_by(state) %>% 
+  summarise(avg_oop = sum(out_of_pocket) / sum(Discharges)) %>% 
+  plot_usmap(data = ., values = "avg_oop") +
+  scale_fill_continuous(low = "white", high = "red", name = "Cost", label = scales::comma) +
+  theme(legend.position = "right") +
+  labs(title = "Average Amount Paid Out of Pocket")
+
+
+med_data %>% 
+  group_by(state) %>% 
+  summarise(avg_oop = sum(out_of_pocket) / sum(Discharges)) %>% 
+  ggplot(aes(reorder(state, avg_oop), avg_oop)) +
+    geom_point(aes(color = state), show.legend = FALSE) +
+    coord_flip() +
+    labs(x = "State", y = "Avg Out of Pocket", title = "Average Amount Paid Out of Pocket per State")
+
+
+
+```
+
+
+
+```{r MCC vs non-MCC, include = FALSE}
 # 
-
-
+# med_data %>% 
+#   mutate(MCC = str_detect(DRG_Descr, "MCC")) %>% 
+#   filter(MCC == TRUE) %>% 
+#   mutate(NoMCC = str_detect(DRG_Descr, "W/O")) %>% 
+#   View()
 
 
 ```
@@ -363,13 +422,15 @@ med_data %>%
 
 
 
+```{r Texas}
+
+texas <- med_data %>% 
+  filter(state == "TX")
 
 
 
 
-
-
-
+```
 
 
 
