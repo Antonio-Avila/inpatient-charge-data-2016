@@ -124,8 +124,8 @@ heart_only %>%
     labs(title = "Percentage of Mean per type of Heart DRG Procedure", x = "DRG Code", y = "Percent of Total Charge")
 
 
-filter(heart_only, DRG_Code %in% c("001", "002", "215", "268")) %>% select(DRG_Descr) %>% unique()
-filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DRG_Descr) %>% unique()
+filter(heart_only, DRG_Code %in% c("001", "002", "215", "268")) %>% select(DRG_Code, DRG_Descr) %>% unique()
+filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DRG_Code, DRG_Descr) %>% unique()
 ```
 
 Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose charges are less than the mean than there are expensive procedures/diagnosis. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
@@ -135,7 +135,7 @@ One thing to note from this for future reference is that procedures designated a
 
 
 
-```{r}
+```{r heart transplant analysis}
 heart_only %>% 
   filter(DRG_Code == "001") %>% 
   group_by(state) %>% 
@@ -275,10 +275,10 @@ top_code_states <- med_data %>%
   summarise(Discharge = sum(Discharges)) %>% 
   filter(Discharge == max(Discharge))
 
-common_codes_states %>% ungroup() %>% count(DRG_Code)
+top_code_states %>% ungroup() %>% count(DRG_Code)
 
 # Most common code per state
-common_codes_states %>% 
+top_code_states %>% 
   ggplot(aes(state, Discharge)) +
     geom_bar(stat = "identity", aes(fill = DRG_Code)) +
     coord_flip()
@@ -306,7 +306,7 @@ med_data %>%
       labs(x = "State", y = "Proportion", title = "Top 2 most common DRG Diagnoses by Proportion")
 
 
-common_codes_states %>% 
+top_code_states %>% 
     plot_usmap(data = ., values = "DRG_Code") +
     theme(legend.position = "right") +
     labs(title = "Most Common DRG Code in each State", fill = "DRG Code")
