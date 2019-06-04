@@ -126,6 +126,7 @@ heart_only %>%
 
 filter(heart_only, DRG_Code %in% c("001", "002", "215", "268")) %>% select(DRG_Code, DRG_Descr) %>% unique()
 filter(heart_only, !(DRG_Code %in% c("001", "002", "215", "268"))) %>% select(DRG_Code, DRG_Descr) %>% unique()
+
 ```
 
 Looking at only the heart related procedures confirm my hypothesis. There are significantly more heart related procedures whose charges are less than the mean than there are expensive procedures/diagnosis. As a results, they account for a larger proportion of the overall average charge, driving it down and explaining why it was unexpectedly low. The procedures designated by DRG Codes 001, 002, 215, and 268 correspond to an invasive procedure, be it a heart transplant, heart assist implant, or aortic assist procedure. The less expensive and more common procedures correspond to some variation of heart failure, thus not requiring surgery at the time of the initial diagnosis; meaning it could be some kind of initial consultation resulting in heart failure diagnosis and possibly needing an invasive procedure in the future depending on the gravity of the situation. 
@@ -400,6 +401,106 @@ med_data %>%
     geom_point(aes(color = state), show.legend = FALSE) +
     coord_flip() +
     labs(x = "State", y = "Avg Out of Pocket", title = "Average Amount Paid Out of Pocket per State")
+
+
+
+```
+
+
+Looking into which procedures or diagnoses get the most paid out by Medicare. Oddly, beneficiaries not having a MCC receving a pacemaker replacement tend to receive an excessive amount of support from Medicare. Medicare pays out 150% of what hospitals charge for the procedure. It is extremely curious and am interested in why but the data itself will not provide an explanation into why its the case, unless a particular provider is providing a larger amount for a replacement pacemaker than necessary. This also raises the question of what happens to the excess once the hospital is paid out. Is the money reimbursed back to Medicare or sent to the beneficiary? 
+
+```{r most paid}
+
+med_data %>% 
+  group_by(DRG_Code) %>% 
+  summarise(perc_covered = sum(TMedPmts) / sum(TCharge)) %>% 
+  ggplot(aes(DRG_Code, perc_covered)) +
+    geom_bar(stat = "identity") +
+    theme(axis.text.x = element_blank())
+
+med_data %>% 
+  group_by(DRG_Code, DRG_Descr) %>% 
+  summarise(perc_covered = sum(TMedPmts) / sum(TCharge)) %>% 
+  arrange(desc(perc_covered))
+
+
+
+med_data %>% 
+    group_by(DRG_Code, DRG_Descr) %>% 
+    summarise(avg_charge = sum(TCharge) / sum(Discharges), 
+              avg_med_paid = sum(TMedPmts) / sum(Discharges), 
+              perc_covered = sum(TMedPmts) / sum(TCharge))
+
+med_data %>% 
+    group_by(DRG_Code, DRG_Descr) %>% 
+    summarise(avg_charge = sum(TCharge) / sum(Discharges), 
+              avg_med_paid = sum(TMedPmts) / sum(Discharges), 
+              perc_covered = sum(TMedPmts) / sum(TCharge)) %>% 
+    filter(str_detect(DRG_Descr, "PACEMAKER"))
+    
+```
+
+The only hospital across the nation to provide a pacemaker replacement to patients having no MCC in 2016 is the New York Community Hospital of Brooklyn. 
+
+```{r 259 pacemaker}
+
+med_data %>% 
+  filter(DRG_Code == "259")
+
+med_data %>% 
+  filter(ID == filter(med_data, DRG_Code == "259")$ID) 
+  
+  
+```
+
+
+
+```{r scatterplot comparisons, include = FALSE}
+
+# no real correlation
+med_data %>% 
+  ggplot(aes(Discharges, AvgCharge)) +
+    geom_point()
+
+med_data %>% 
+  ggplot(aes(AvgCharge, AvgMedPmts)) +
+    geom_point()
+
+med_data %>% 
+  ggplot(aes(AvgCharge, AvgTotalPmts)) +
+    geom_point()
+
+
+# strong correlation since Average total payment includes what medicare pays plus copayments/deductibles, skewing it to be equal to or greater than the avg medicare paymt. no suprise here
+med_data %>% 
+  ggplot(aes(AvgMedPmts, AvgTotalPmts)) +
+    geom_point()
+
+```
+
+
+As expected, the average charge per procedure increases as the average amount Medicare covers also increases on the national scale. There are hints that some states may increase at a significantly higher rate than others since there are clusters of points together increasing linearly. For Maryland, Medicare's coverage increases much faster than the average cost per procedure. 
+
+```{r medpmt vs charges}
+library(directlabels);
+
+med_data %>% 
+  ggplot(aes(AvgCharge, AvgMedPmts)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth()
+
+med_data %>% 
+  ggplot(aes(AvgCharge, AvgMedPmts)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm")
+
+
+# Need to fix the labels on the plots
+med_data %>% 
+  ggplot(aes(AvgCharge, AvgMedPmts, group = state)) +
+    geom_point(alpha = 0.3) +
+    geom_smooth(method = "lm", aes(color = state), se = FALSE, show.legend = FALSE) +
+    geom_dl(aes(label = state), method = 'last.points')
 
 
 
