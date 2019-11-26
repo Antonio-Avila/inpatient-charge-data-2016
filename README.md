@@ -5,8 +5,12 @@ Analysis of how Medicare benefitiaries are charged for hospital services and pro
 Data comes from the Centers for Medicare & Medicaid Services. Can be found via the following link: 
 *https://www.cms.gov/Research-Statistics-Data-and-Systems/Statistics-Trends-and-Reports/Medicare-Provider-Charge-Data/Inpatient2016.html*
 
-
-![alt text](https://github.com/Antonio-Avila/inpatient-charge-data-2016/blob/master/shinyimage.png)
+In addition to the analysis, I built an interactive web app using R's Shiny package. The web app creates a heat map of the US
+based on selected values the user can choose from, such as the average cost per procedure. Moreover, the user can specify
+a state via its abbreviation (for example, Texas is TX) to receive its exact value from the plot. Alternatively, the user may 
+choose the "Table" tab located above the plot to display a chart containing all the states' values.
+The web app can be accesed via the following [link](https://antonioavila.shinyapps.io/med_shiny/)
+![alt text](https://github.com/Antonio-Avila/inpatient-charge-data-2016/blob/master/shinyimage.png)(https://antonioavila.shinyapps.io/med_shiny/)
 
 
 My thoughts as I am analyzing the data are found in the **_medicare_proj.pdf_** file. 
